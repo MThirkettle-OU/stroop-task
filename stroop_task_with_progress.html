@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Stroop Task</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; }
+        #fixation { font-size: 48px; }
+        #stimulus { font-size: 48px; margin: 20px; }
+        #progress { font-size: 20px; margin-bottom: 20px; }
+        #start { margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <div id="start">
+        <label for="pptId">Participant ID:</label>
+        <input type="text" id="pptId">
+        <button onclick="startExperiment()">Start Experiment</button>
+    </div>
+    <div id="progress"></div>
+    <div id="fixation"></div>
+    <div id="stimulus"></div>
+    <script>
+        const colors = ['RED', 'GREEN', 'BLUE', 'YELLOW'];
+        const colorMap = { RED: 'red', GREEN: 'green', BLUE: 'blue', YELLOW: 'yellow' };
+        const keys = { r: 'RED', g: 'GREEN', b: 'BLUE', y: 'YELLOW' };
+        let trials = [];
+        let currentTrial = 0;
+        let startTime;
+        let results = [];
+        let pptId = '';
+
+        function generateTrials(numTrials) {
+            let trialList = [];
+            for (let i = 0; i < numTrials / 2; i++) {
+                let color = colors[i % colors.length];
+                trialList.push({ word: color, color: color, congruent: true });
+                let incongruentColor = colors.filter(c => c !== color)[Math.floor(Math.random() * 3)];
+                trialList.push({ word: color, color: incongruentColor, congruent: false });
+            }
+            return trialList.sort(() => Math.random() - 0.5);
+        }
+
+        function startExperiment() {
+            pptId = document.getElementById('pptId').value;
+            if (!pptId) {
+                alert('Please enter Participant ID');
+                return;
+            }
+            document.getElementById('start').style.display = 'none';
+            trials = generateTrials(5).concat(generateTrials(64), generateTrials(64));
+            runTrial();
+        }
+
+        function runTrial() {
+            if (currentTrial >= trials.length) {
+                showSummary();
+                return;
+            }
+            document.getElementById('progress').innerText = `Trial ${currentTrial + 1} of ${trials.length}`;
+            document.getElementById('stimulus').innerText = '';
+            document.getElementById('fixation').innerText = '+';
+            setTimeout(() => {
+                document.getElementById('fixation').innerText = '';
+                let trial = trials[currentTrial];
+                let stim = document.getElementById('stimulus');
+                stim.innerText = trial.word;
+                stim.style.color = colorMap[trial.color];
+                startTime = performance.now();
+            }, 500);
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (!startTime) return;
+            let rt = performance.now() - startTime;
+            let response = keys[event.key.toLowerCase()];
+            if (!response) return;
+            let trial = trials[currentTrial];
+            let correct = response === trial.color;
+            results.push({
+                pptId: pptId,
+                trialNum: currentTrial + 1,
+                word: trial.word,
+                color: trial.color,
+                congruent: trial.congruent,
+                response: response,
+                correct: correct,
+                rt: rt.toFixed(2)
+            });
+            currentTrial++;
+            startTime = null;
+            runTrial();
+        });
+
+        function showSummary() {
+            let congruent = results.filter(r => r.congruent);
+            let incongruent = results.filter(r => !r.congruent);
+            let avgRT = arr => arr.reduce((sum, r) => sum + parseFloat(r.rt), 0) / arr.length;
+            let acc = arr => arr.filter(r => r.correct).length / arr.length * 100;
+            let summary = `
+                <h2>Summary</h2>
+                <p>Congruent Trials: Accuracy = ${acc(congruent).toFixed(2)}%, Avg RT = ${avgRT(congruent).toFixed(2)} ms</p>
+                <p>Incongruent Trials: Accuracy = ${acc(incongruent).toFixed(2)}%, Avg RT = ${avgRT(incongruent).toFixed(2)} ms</p>
+            `;
+            document.body.innerHTML = summary;
+        }
+    </script>
+</body>
+</html>

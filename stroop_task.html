@@ -1,0 +1,142 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stroop Task</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; }
+        #stimulus { font-size: 48px; font-weight: bold; }
+        #fixation { font-size: 48px; font-weight: bold; }
+        #summary { margin-top: 50px; }
+        #startBtn, #downloadBtn { padding: 10px 20px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Stroop Task</h1>
+    <div id="participantInput">
+        <label for="participantId">Enter Participant ID:</label>
+        <input type="text" id="participantId">
+        <button id="startBtn">Start Task</button>
+    </div>
+    <div id="fixation" style="display:none;">+</div>
+    <div id="stimulus" style="display:none;"></div>
+    <div id="summary" style="display:none;"></div>
+    <button id="downloadBtn" style="display:none;">Download CSV</button>
+
+    <script>
+        const colors = ["red", "green", "blue", "yellow"];
+        const trials = [];
+        const practiceTrials = 5;
+        const blockTrials = 64;
+        const blocks = 2;
+        let currentTrial = 0;
+        let startTime;
+        let participantId;
+        let results = [];
+
+        function generateTrials(n) {
+            let trialSet = [];
+            for (let i = 0; i < n / 2; i++) {
+                let color = colors[Math.floor(Math.random() * colors.length)];
+                trialSet.push({ word: color, color: color, condition: "congruent" });
+            }
+            for (let i = 0; i < n / 2; i++) {
+                let word = colors[Math.floor(Math.random() * colors.length)];
+                let color;
+                do {
+                    color = colors[Math.floor(Math.random() * colors.length)];
+                } while (color === word);
+                trialSet.push({ word: word, color: color, condition: "incongruent" });
+            }
+            return trialSet.sort(() => Math.random() - 0.5);
+        }
+
+        function showFixation() {
+            document.getElementById("fixation").style.display = "block";
+            document.getElementById("stimulus").style.display = "none";
+            setTimeout(showStimulus, 500);
+        }
+
+        function showStimulus() {
+            document.getElementById("fixation").style.display = "none";
+            const trial = trials[currentTrial];
+            const stim = document.getElementById("stimulus");
+            stim.textContent = trial.word.toUpperCase();
+            stim.style.color = trial.color;
+            stim.style.display = "block";
+            startTime = performance.now();
+        }
+
+        function endTask() {
+            document.getElementById("stimulus").style.display = "none";
+            const summary = document.getElementById("summary");
+            summary.innerHTML = "<h2>Summary</h2>";
+            let congruent = results.filter(r => r.condition === "congruent");
+            let incongruent = results.filter(r => r.condition === "incongruent");
+            let avgCongruentRT = (congruent.reduce((sum, r) => sum + r.rt, 0) / congruent.length).toFixed(2);
+            let avgIncongruentRT = (incongruent.reduce((sum, r) => sum + r.rt, 0) / incongruent.length).toFixed(2);
+            let accCongruent = (congruent.filter(r => r.correct).length / congruent.length * 100).toFixed(2);
+            let accIncongruent = (incongruent.filter(r => r.correct).length / incongruent.length * 100).toFixed(2);
+            summary.innerHTML += `<p>Congruent - Avg RT: ${avgCongruentRT} ms, Accuracy: ${accCongruent}%</p>`;
+            summary.innerHTML += `<p>Incongruent - Avg RT: ${avgIncongruentRT} ms, Accuracy: ${accIncongruent}%</p>`;
+            summary.style.display = "block";
+            document.getElementById("downloadBtn").style.display = "inline-block";
+        }
+
+        function downloadCSV() {
+            let csv = "participant_id,trial,word,color,condition,response,correct,rt\n";
+            results.forEach((r, i) => {
+                csv += `${participantId},${i+1},${r.word},${r.color},${r.condition},${r.response},${r.correct},${r.rt}\n`;
+            });
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "stroop_results.csv";
+            a.click();
+        }
+
+        document.getElementById("startBtn").onclick = () => {
+            participantId = document.getElementById("participantId").value.trim();
+            if (!participantId) {
+                alert("Please enter a Participant ID.");
+                return;
+            }
+            document.getElementById("participantInput").style.display = "none";
+            trials.push(...generateTrials(practiceTrials));
+            for (let i = 0; i < blocks; i++) {
+                trials.push(...generateTrials(blockTrials));
+            }
+            showFixation();
+        };
+
+        document.addEventListener("keydown", (e) => {
+            if (document.getElementById("stimulus").style.display === "block") {
+                const trial = trials[currentTrial];
+                const rt = performance.now() - startTime;
+                const responseKey = e.key.toLowerCase();
+                const responseMap = { r: "red", g: "green", b: "blue", y: "yellow" };
+                const response = responseMap[responseKey];
+                const correct = response === trial.color;
+                results.push({
+                    word: trial.word,
+                    color: trial.color,
+                    condition: trial.condition,
+                    response: response || "invalid",
+                    correct: correct,
+                    rt: Math.round(rt)
+                });
+                currentTrial++;
+                if (currentTrial < trials.length) {
+                    showFixation();
+                } else {
+                    endTask();
+                }
+            }
+        });
+
+        document.getElementById("downloadBtn").onclick = downloadCSV;
+    </script>
+</body>
+</html>
